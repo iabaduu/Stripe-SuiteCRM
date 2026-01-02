@@ -1,14 +1,14 @@
 <?php
 /**
  * Webhook per Stripe -> SuiteCRM
- * Versione: 3.1 (Fix Utente Database + Fix Tabelle Custom)
+ * Versione: 4.0 (Supporto Campi Custom: SDI, PIVA, StripeID)
  */
 
-// --- CONFIGURAZIONE AGGIORNATA ---
+// --- CONFIGURAZIONE ---
 $config = [
     'db_host' => 'localhost',
-    'db_name' => 'iabasuite2',          // Nome DB Corretto
-    'db_user' => 'iabaduu2',            // <--- CORRETTO: Era 'iabaduu', ora è 'iabaduu2'
+    'db_name' => 'iabasuite2',          
+    'db_user' => 'iabaduu2',            
     'db_password' => 'Ciapalacadrega2025',
     'api_key' => '4e9a8f2c7b1d6e0c5a3b9d8f0a7e1c2b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90', 
     'default_user_id' => '1',
@@ -42,7 +42,6 @@ $headers = getallheaders();
 $apiKeyInput = $_GET['api_key'] ?? $headers['X-Api-Key'] ?? null;
 
 if ($apiKeyInput !== $config['api_key']) {
-    writeLog("Tentativo non autorizzato. IP: " . $_SERVER['REMOTE_ADDR']);
     sendJsonResponse(['error' => 'Unauthorized'], 401);
 }
 
@@ -51,12 +50,11 @@ try {
     $event = json_decode($input, true);
 
     if (!$event) {
-        if ($_SERVER['REQUEST_METHOD'] === 'GET') { echo "Webhook attivo su iabasuite2."; exit; }
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') { echo "Webhook attivo v4.0"; exit; }
         throw new Exception("Payload JSON vuoto.");
     }
 
     if (isset($event['type']) && $event['type'] !== 'invoice.payment_succeeded') {
-        writeLog("Evento ignorato: " . $event['type']);
         sendJsonResponse(['message' => 'Event ignored'], 200);
     }
 
@@ -67,20 +65,33 @@ try {
     $stripeName  = $dataObject['customer_name'] ?? $stripeEmail;
     $amountPaid  = $dataObject['amount_paid'] ?? 0; 
     
-    // Logic Date: se scadenza <= inizio, forza +1 anno
+    // --- NUOVI CAMPI CUSTOM ---
+    // 1. Stripe Customer ID
+    $stripeCustomerId = $dataObject['customer'] ?? '';
+
+    // 2. SDI (dal Metadata)
+    $sdi = $dataObject['metadata']['codice_sdi'] ?? '';
+
+    // 3. P.IVA (Priorità: Metadata 'piva' -> Metadata 'vat_number' -> Tax IDs nativi di Stripe)
+    $piva = $dataObject['metadata']['piva'] ?? $dataObject['metadata']['vat_number'] ?? '';
+    
+    // Se non troviamo la PIVA nei metadati, proviamo a vedere se Stripe l'ha passata nei dettagli fiscali
+    if (empty($piva) && !empty($dataObject['customer_tax_ids'])) {
+        // Prende il primo tax id disponibile (di solito è la piva)
+        $piva = $dataObject['customer_tax_ids'][0]['value'] ?? '';
+    }
+
+    // Date Logic
     $periodStartUnix = $dataObject['lines']['data'][0]['period']['start'] ?? time();
     $periodEndUnix   = $dataObject['lines']['data'][0]['period']['end'] ?? 0;
-    
     if ($periodEndUnix <= $periodStartUnix) {
         $periodEndUnix = strtotime('+1 year', $periodStartUnix);
     }
-    
     $startDate = date('Y-m-d', $periodStartUnix);
     $endDate   = date('Y-m-d', $periodEndUnix);
-    
     $contractValue = $amountPaid / 100;
 
-    writeLog("Processing: $stripeEmail | DB: {$config['db_name']} | User: {$config['db_user']}");
+    writeLog("Processing: $stripeName | SDI: $sdi | PIVA: $piva | CustID: $stripeCustomerId");
 
     $db = new PDO(
         "mysql:host={$config['db_host']};dbname={$config['db_name']};charset=utf8mb4",
@@ -95,22 +106,40 @@ try {
     $contactId = null;
 
     // --- 1. ACCOUNT ---
-    $stmt = $db->prepare("SELECT id FROM accounts WHERE name = ? AND deleted = 0");
-    $stmt->execute([$stripeName]);
+    // Cerchiamo l'account per Stripe ID (più preciso) O per Nome
+    $stmt = $db->prepare("
+        SELECT accounts.id 
+        FROM accounts 
+        LEFT JOIN accounts_cstm ON accounts.id = accounts_cstm.id_c
+        WHERE (accounts.name = ? OR accounts_cstm.stripe_customer_id_c = ?) 
+        AND accounts.deleted = 0 
+        LIMIT 1
+    ");
+    $stmt->execute([$stripeName, $stripeCustomerId]);
     $accountRow = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($accountRow) {
         $accountId = $accountRow['id'];
-        writeLog("Account esistente: $accountId");
+        writeLog("Account trovato: $accountId");
     } else {
         $accountId = generateUuid();
-        writeLog("Nuovo Account: $stripeName");
+        writeLog("Creazione nuovo Account: $stripeName");
         $stmt = $db->prepare("INSERT INTO accounts (id, name, date_entered, date_modified, created_by, assigned_user_id, deleted) VALUES (?, ?, ?, ?, ?, ?, 0)");
         $stmt->execute([$accountId, $stripeName, $now, $now, $userId, $userId]);
-        
-        // Fix Custom Fields Table
-        try { $db->prepare("INSERT INTO accounts_cstm (id_c) VALUES (?)")->execute([$accountId]); } catch(Exception $e){}
     }
+
+    // --- AGGIORNAMENTO DATI CUSTOM ACCOUNT (SDI, PIVA, STRIPE ID) ---
+    // Usiamo ON DUPLICATE KEY UPDATE per gestire sia insert che update in un colpo solo
+    $sqlCstm = "INSERT INTO accounts_cstm (id_c, sdi_c, piva_c, stripe_customer_id_c) 
+                VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE 
+                sdi_c = VALUES(sdi_c), 
+                piva_c = VALUES(piva_c), 
+                stripe_customer_id_c = VALUES(stripe_customer_id_c)";
+    
+    $stmtCstm = $db->prepare($sqlCstm);
+    $stmtCstm->execute([$accountId, $sdi, $piva, $stripeCustomerId]);
+
 
     // --- 2. CONTACT ---
     if ($stripeEmail) {
@@ -128,8 +157,6 @@ try {
 
         if (!$contactId) {
             $contactId = generateUuid();
-            writeLog("Nuovo Contatto: $stripeEmail");
-            
             $parts = explode(' ', $stripeName, 2);
             $fName = $parts[0];
             $lName = $parts[1] ?? '-';
@@ -137,7 +164,6 @@ try {
             $stmt = $db->prepare("INSERT INTO contacts (id, first_name, last_name, date_entered, date_modified, created_by, assigned_user_id, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, 0)");
             $stmt->execute([$contactId, $fName, $lName, $now, $now, $userId, $userId]);
             
-            // Fix Custom Fields Table
             try { $db->prepare("INSERT INTO contacts_cstm (id_c) VALUES (?)")->execute([$contactId]); } catch(Exception $e){}
 
             if (!$emailRow) {
@@ -154,7 +180,7 @@ try {
         }
     }
 
-    // --- 3. LINK ACCOUNT-CONTACT ---
+    // --- 3. LINK ---
     if ($accountId && $contactId) {
         $stmt = $db->prepare("SELECT id FROM accounts_contacts WHERE account_id = ? AND contact_id = ? AND deleted = 0");
         $stmt->execute([$accountId, $contactId]);
@@ -186,14 +212,9 @@ try {
         $config['currency_id'], $accountId, $contactId, $contractType
     ]);
     
-    // Fix Custom Fields Table
-    try {
-        $db->prepare("INSERT INTO aos_contracts_cstm (id_c) VALUES (?)")->execute([$contractId]);
-    } catch (Exception $e) {
-        // Ignora se la tabella non esiste
-    }
+    try { $db->prepare("INSERT INTO aos_contracts_cstm (id_c) VALUES (?)")->execute([$contractId]); } catch (Exception $e) {}
 
-    writeLog("Contratto creato su $config[db_name]: $contractId");
+    writeLog("Contratto creato: $contractId");
 
     sendJsonResponse(['success' => true, 'contract_id' => $contractId]);
 
