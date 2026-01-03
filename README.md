@@ -70,7 +70,7 @@ $config = [
     'default_user_id' => '1',           // ID dell'utente CRM assegnatario
     'currency_id' => '-99'              // ID valuta (spesso -99 è Euro/Default)
 ];
-
+```
 ---
 
-3. Campi Custom (SuiteCRM)Assicurati di aver creato i seguenti campi nel modulo Accounts tramite Studio:Nome Campo (DB)Label SuggeritaTiposdi_cCodice SDITextFieldpiva_cPartita IVATextFieldstripe_customer_id_cStripe Customer IDTextField
+### 3. Campi Custom (SuiteCRM)Assicurati di aver creato i seguenti campi nel modulo Accounts tramite Studio:Nome Campo (DB)Label SuggeritaTiposdi_cCodice SDITextFieldpiva_cPartita IVATextFieldstripe_customer_id_cStripe Customer IDTextField
