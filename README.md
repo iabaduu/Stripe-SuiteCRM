@@ -1,4 +1,7 @@
 Stripe to SuiteCRM Webhook Integration
+
+iabaduu srl
+
 Questo progetto fornisce un endpoint PHP leggero ("Bare Metal") per sincronizzare automaticamente i pagamenti di Stripe con SuiteCRM (v7/v8).
 
 Il webhook intercetta i pagamenti avvenuti (invoice.payment_succeeded) e gestisce automaticamente l'intero ciclo di vita del cliente e del contratto nel database MySQL del CRM.
