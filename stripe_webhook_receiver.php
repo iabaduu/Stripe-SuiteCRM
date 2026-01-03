@@ -7,10 +7,10 @@
 // --- CONFIGURAZIONE ---
 $config = [
     'db_host' => 'localhost',
-    'db_name' => 'iabasuite2',          
-    'db_user' => 'iabaduu2',            
-    'db_password' => 'Ciapalacadrega2025',
-    'api_key' => '4e9a8f2c7b1d6e0c5a3b9d8f0a7e1c2b4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90', 
+    'db_name' => 'iabaduu',          
+    'db_user' => 'iabaduu',            
+    'db_password' => 'iabaduu',
+    'api_key' => 'iabaduu2iabaduu2iabaduu2iabaduu2iabaduu2iabaduu2iabaduu2iabaduu2iabaduu2iabaduu2iabaduu2', 
     'default_user_id' => '1',
     'currency_id' => '-99' 
 ];
