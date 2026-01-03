@@ -94,6 +94,7 @@ Salva l'endpoint.
 Per popolare correttamente P.IVA e SDI, puoi passare questi dati nei Metadata di Stripe (oggetto Customer o Invoice).
 
 Lo script cerca i dati in questo ordine di priorità:
+
 Campo CRM,Logica di Ricerca (Priorità decrescente)
 P.IVA,1. metadata['piva']2. metadata['vat_number']3. customer_tax_ids (Nativo Stripe)
 SDI,1. metadata['codice_sdi']
@@ -114,6 +115,7 @@ Per monitorare i log in tempo reale:
 Bash
 
 tail -f stripe_receiver_log.txt
+
 Esempio di output log:
 
 Plaintext
@@ -121,4 +123,6 @@ Plaintext
 [2026-01-02 10:00:00] Processing: mario@rossi.it | SDI: XYZ123 | PIVA: 12345678901
 [2026-01-02 10:00:01] Account trovato: 5f4dcc3b-1234-abcd
 [2026-01-02 10:00:01] Contratto creato: 8a2b3c4d-5678-efgh (Scadenza: 2027-01-02)
+
+
 [!WARNING] Disclaimer Sicurezza & Database Questo script interagisce direttamente con il database MySQL. Assicurati che l'utente DB abbia i permessi strettamente necessari. Si consiglia vivamente di testare l'integrazione in un ambiente di Staging prima di andare in produzione. Effettuare backup regolari del database.
