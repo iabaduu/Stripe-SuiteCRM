@@ -73,4 +73,52 @@ $config = [
 ```
 ---
 
-### 3. Campi Custom (SuiteCRM)Assicurati di aver creato i seguenti campi nel modulo Accounts tramite Studio:Nome Campo (DB)Label SuggeritaTiposdi_cCodice SDITextFieldpiva_cPartita IVATextFieldstripe_customer_id_cStripe Customer IDTextField
+### 3. Campi Custom (SuiteCRM)
+Assicurati di aver creato i seguenti campi nel modulo Accounts tramite Studio:
+Nome Campo (DB)Label Suggerita Tipo
+sdi_cCodice SDITextFieldpiva_cPartita IVATextFieldstripe_customer_id_cStripe Customer IDTextField
+
+🔗 Setup su Stripe
+Vai nella Stripe Dashboard > Developers > Webhooks.
+
+Clicca su "Add Endpoint".
+
+Endpoint URL: Inserisci l'URL del tuo script includendo la API Key:
+
+[https://tuo-crm.com/stripe_webhook_receiver.php?api_key=LA_TUA_CHIAVE_QUI](https://tuo-crm.com/stripe_webhook_receiver.php?api_key=LA_TUA_CHIAVE_QUI)
+Events to listen for: Seleziona invoice.payment_succeeded.
+
+Salva l'endpoint.
+
+📦 Mappatura Dati (Metadati)
+Per popolare correttamente P.IVA e SDI, puoi passare questi dati nei Metadata di Stripe (oggetto Customer o Invoice).
+
+Lo script cerca i dati in questo ordine di priorità:
+Campo CRM,Logica di Ricerca (Priorità decrescente)
+P.IVA,1. metadata['piva']2. metadata['vat_number']3. customer_tax_ids (Nativo Stripe)
+SDI,1. metadata['codice_sdi']
+Stripe ID,customer.id (Automatico da oggetto Stripe)
+
+📝 Logica Date (Smart Renewal)
+Il sistema calcola automaticamente la durata del contratto:
+
+Abbonamenti: Usa period_start e period_end forniti dalla fattura Stripe.
+
+Pagamenti Singoli (One-off): Se Stripe invia una fattura immediata (dove inizio == fine), lo script imposta forzatamente la scadenza a +1 Anno.
+
+🐛 Debugging
+Lo script genera un file di log nella stessa directory per facilitare il debug.
+
+Per monitorare i log in tempo reale:
+
+Bash
+
+tail -f stripe_receiver_log.txt
+Esempio di output log:
+
+Plaintext
+
+[2026-01-02 10:00:00] Processing: mario@rossi.it | SDI: XYZ123 | PIVA: 12345678901
+[2026-01-02 10:00:01] Account trovato: 5f4dcc3b-1234-abcd
+[2026-01-02 10:00:01] Contratto creato: 8a2b3c4d-5678-efgh (Scadenza: 2027-01-02)
+[!WARNING] Disclaimer Sicurezza & Database Questo script interagisce direttamente con il database MySQL. Assicurati che l'utente DB abbia i permessi strettamente necessari. Si consiglia vivamente di testare l'integrazione in un ambiente di Staging prima di andare in produzione. Effettuare backup regolari del database.
