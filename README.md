@@ -63,8 +63,8 @@ Modifica l'array `$config` all'inizio del file `stripe_webhook_receiver.php`:
 ```php
 $config = [
     'db_host' => 'localhost',
-    'db_name' => 'iabasuite2',          // Il nome del tuo database CRM
-    'db_user' => 'iabaduu2',            // Utente DB con permessi INSERT/UPDATE
+    'db_name' => 'iabaduuDB',          // Il nome del tuo database CRM
+    'db_user' => 'iabaduuUSER',            // Utente DB con permessi INSERT/UPDATE
     'db_password' => 'tua_password',
     'api_key' => 'genera_una_stringa_sicura', // Es. sha256 per proteggere l'URL
     'default_user_id' => '1',           // ID dell'utente CRM assegnatario
