@@ -1,7 +1,7 @@
 <?php
 /**
  * Webhook per Stripe -> SuiteCRM
- * Versione: 6.0 (Single Event Architecture: Trial = Lead, Paid = Customer/Contract)
+ * Versione: 6.1 (Single Event, Trial = Lead, Paid = Customer + Campo Custom Contatto)
  */
 
 // --- CONFIGURAZIONE ---
@@ -50,7 +50,7 @@ try {
     $event = json_decode($input, true);
 
     if (!$event) {
-        if ($_SERVER['REQUEST_METHOD'] === 'GET') { echo "Webhook attivo v6.0"; exit; }
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') { echo "Webhook attivo v6.1"; exit; }
         throw new Exception("Payload JSON vuoto.");
     }
 
@@ -220,7 +220,11 @@ try {
                 $stmt = $db->prepare("INSERT INTO contacts (id, first_name, last_name, phone_work, primary_address_street, primary_address_city, primary_address_state, primary_address_postalcode, primary_address_country, date_entered, date_modified, created_by, assigned_user_id, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
                 $stmt->execute([$contactId, $firstName, $lastName, $phone, $address_line, $city, $state, $postal_code, $country, $now, $now, $userId, $userId]);
                 
-                try { $db->prepare("INSERT INTO contacts_cstm (id_c) VALUES (?)")->execute([$contactId]); } catch(Exception $e){}
+                // === MODIFICA INSERITA QUI ===
+                // Inseriamo il campo custom cliente_iabaduu_c = 'MedStock'
+                try { 
+                    $db->prepare("INSERT INTO contacts_cstm (id_c, cliente_iabaduu_c) VALUES (?, 'MedStock')")->execute([$contactId]); 
+                } catch(Exception $e){}
 
                 if (!$emailRow) {
                     $emailId = generateUuid();
